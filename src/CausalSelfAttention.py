@@ -13,7 +13,7 @@ class CausalSelfAttention(nn.Module):
 
         # output projection
         self.c_proj = nn.Linear(config.n_embd, config.n_embd)
-
+        self.c_proj.NANOGPT_SCALE_INIT = 1
         # regulization
         self.n_head = config.n_head
         self.n_embd = config.n_embd

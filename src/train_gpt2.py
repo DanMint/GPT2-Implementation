@@ -23,6 +23,23 @@ class GPT(nn.Module):
 
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
 
+        # weight ting scheme
+        self.transformer.wte.weight = self.lm_head.weight
+
+        # init params
+        self.apply(self._init_weights)
+
+    def _init_weights(self, module):
+        if isinstance(module, nn.Linear):
+            std = 0.02
+            if hasattr(module, "NANOGPT_SCALE_INIT"):
+                std *= (2 * module.NANOGPT_SCALE_INIT) ** -0.5
+            torch.nn.init.normal(module.weight, mean=0.0, std=std)
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, nn.Embedding):
+            torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+
     def forward(self, idx, targets=None):
         # B, T, C -> Batch = number of independent seqeunces being processed at the same time. T = number of tokens in each sequence. Channel = number of dimensions
         B, T = idx.size()
@@ -48,6 +65,7 @@ class GPT(nn.Module):
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
             
         return logits, loss
+
     # loading the weights 
     @classmethod
     def from_pretrained(cls, model_type):
