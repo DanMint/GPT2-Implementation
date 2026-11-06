@@ -4,7 +4,7 @@ from torch.nn import functional as F
 
 from GPT_config import GPTConfig
 from block import Block
-from dataLoader import get_x_y
+from dataLoader import DataLoaderLite
 
 class GPT(nn.Module):
     def __init__(self, config):
@@ -110,20 +110,19 @@ def main():
     num_return_sequences = 5
     max_length = 30
 
-    x, y = get_x_y()
+    train_loader = DataLoaderLite(4, 32)
 
     model = GPT(GPTConfig())
     # put model in eval model for using the model
     model.eval()
     # move everything into gpu
     model.to(device)
-    x = x.to(device)
-    y = y.to(device)
-    logits, loss = model(x, y)
 
     # optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
-    for i in range(50):
+    for i in range(100):
+        x, y = train_loader.next_batch()
+        x, y = x.to(device), y.to(device)
         # always remember to start with zero gradient!!!!
         optimizer.zero_grad()
         logits, loss = model(x, y)
