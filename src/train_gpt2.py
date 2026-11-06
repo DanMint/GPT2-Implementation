@@ -4,6 +4,7 @@ from torch.nn import functional as F
 
 from GPT_config import GPTConfig
 from block import Block
+from dataLoader import get_x_y
 
 class GPT(nn.Module):
     def __init__(self, config):
@@ -22,7 +23,7 @@ class GPT(nn.Module):
 
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
 
-    def forward(self, idx):
+    def forward(self, idx, targets=None):
         # B, T, C -> Batch = number of independent seqeunces being processed at the same time. T = number of tokens in each sequence. Channel = number of dimensions
         B, T = idx.size()
         assert T <= self.config.block_size 
@@ -39,8 +40,14 @@ class GPT(nn.Module):
         # apply layer norm to normalize the values of a tokens vector
         x = self.transformer.ln_f(x)
         logits = self.lm_head(x)
-        return logits
-
+        loss = None
+        if targets is not None:
+            # cross entorpy does NOT like multi dimensional inputs. It cant handle (B, T, vocab_size) inputs. Here we are flattening out the 3 dimenional tensor into just 2 dimensions.
+            # logits.view(-1, logits.size(-1)) -> B*T and vocab_size
+            # targets.view(-1) -> this is 2D but we flatten it out
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
+            
+        return logits, loss
     # loading the weights 
     @classmethod
     def from_pretrained(cls, model_type):
@@ -103,12 +110,31 @@ def main():
     num_return_sequences = 5
     max_length = 30
 
-    model = GPT.from_pretrained('gpt2')
+    x, y = get_x_y()
+
+    model = GPT(GPTConfig())
     # put model in eval model for using the model
     model.eval()
     # move everything into gpu
-    model.to('cuda')
+    model.to(device)
+    x = x.to(device)
+    y = y.to(device)
+    logits, loss = model(x, y)
+
+    # optimizer
+    optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
+    for i in range(50):
+        # always remember to start with zero gradient!!!!
+        optimizer.zero_grad()
+        logits, loss = model(x, y)
+        # deposits gradients += to what the gradeints are. Basically we accumulate the gradient from the loss
+        loss.backward()
+        # the step updates the parameters and decreases the loss
+        optimizer.step()
+        print(f"step {i}, loss: {loss.item()}")
+
     print("didnt crash yay!")
+    import sys; sys.exit(0)
 
     # creating prefix tokens
     import tiktoken
